@@ -1,6 +1,6 @@
 # Node.js API URL
 # raise UserError("Internal Server Error")
-api_url = "https://your-server.com:3000/send-sms"
+api_url = "https://your-server.com:3000/api/sms/send"
 
 # Message and recipient phone number
 # message = f"Dear {record.partner_id.name}, Sale Amt: KES {record.amount_total}, Cumulative Bal: KES {record.x_studio_cumulative_balance}, Sale savings:KES  {record.amount_tax}, Cumulative Savings: KES {record.x_studio_cumulative_savings}.Pay to TILL NO: 4649840 (NO CASH). Big3Bakers"

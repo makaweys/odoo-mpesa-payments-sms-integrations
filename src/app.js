@@ -35,9 +35,7 @@ app.use(ipWhitelist(allowedIPs));
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps, curl)
       if (!origin) return callback(null, true);
-      // In production, you might want to restrict this further
       callback(null, true);
     },
     credentials: true,
@@ -57,68 +55,67 @@ app.use("/api/", rateLimiter);
 // Request logging
 app.use(requestLogger);
 
-// ==================== Routes ====================
+// ==================== Route Mounting ====================
 
-// Health check routes (public)
-app.use("/health", healthRoutes);
+// Mount route modules - ONLY these three as specified
+app.use("/api/hash", hashRoutes); // All hash endpoints under /api/hash
+app.use("/api/sms", smsRoutes); // All SMS endpoints under /api/sms
+app.use("/health", healthRoutes); // Health check endpoints
+
+// ==================== Root Information Endpoint ====================
 app.get("/", (req, res) => {
   res.json({
-    service: "Odoo-Mpesa Hash Bridge",
+    service: "Odoo Mpesa Payments and SMS Integration",
     status: "running",
+    version: process.env.npm_package_version || "1.0.0",
     endpoints: {
-      hash: "/api/hash/generate",
-      sms: "/send-sms",
-      health: "/health",
-      test: "/api/hash/test-formats",
+      hash: {
+        "POST /api/hash/generate":
+          "Generate three hash formats for a phone number",
+        "POST /api/hash/batch-generate":
+          "Generate hashes for multiple customers",
+        "POST /api/hash/verify": "Verify a phone number against a hash",
+        "GET /api/hash/test-formats": "Test phone number format handling",
+      },
+      sms: {
+        "POST /api/sms/send": "Send SMS notification",
+        "POST /api/sms/bulk": "Send bulk SMS messages",
+        "GET /api/sms/health": "SMS service health check",
+        "POST /api/sms/test": "Test SMS configuration",
+      },
+      health: {
+        "GET /health": "Basic health status",
+        "GET /health/detailed": "Detailed health information",
+      },
     },
     timestamp: new Date().toISOString(),
   });
 });
 
-// Hash generation routes (protected)
-app.use("/api/hash", hashRoutes);
-
-// Note: These are at root level to match your Odoo's /send-sms endpoint
-app.post("/send-sms", (req, res) => {
-  require("./controllers/smsController").sendSMS(req, res);
-});
-
-// Additional SMS endpoints
-app.post("/bulk-send", (req, res) => {
-  require("./controllers/smsController").sendBulkSMS(req, res);
-});
-
-app.get("/sms-health", (req, res) => {
-  require("./controllers/smsController").healthCheck(req, res);
-});
-
-app.post("/test-sms", (req, res) => {
-  require("./controllers/smsController").testSMS(req, res);
-});
-
-// You can also mount SMS routes under /api if desired
-app.use("/api/sms", smsRoutes);
-
 // ==================== 404 Handler ====================
 app.use((req, res) => {
+  logger.warn("404 - Route not found", {
+    method: req.method,
+    url: req.url,
+    ip: req.ip,
+  });
+
   res.status(404).json({
     error: "Not Found",
     message: `Cannot ${req.method} ${req.url}`,
-    available_endpoints: {
-      hash: [
-        "POST /api/hash/generate",
-        "POST /api/hash/batch-generate",
-        "POST /api/hash/verify",
-        "GET /api/hash/test-formats",
-      ],
-      sms: [
-        "POST /send-sms",
-        "POST /bulk-send",
-        "GET /sms-health",
-        "POST /test-sms",
-      ],
-      health: ["GET /health", "GET /"],
-    },
+    available_endpoints: [
+      "GET /",
+      "GET /health",
+      "GET /health/detailed",
+      "POST /api/hash/generate",
+      "POST /api/hash/batch-generate",
+      "POST /api/hash/verify",
+      "GET /api/hash/test-formats",
+      "POST /api/sms/send",
+      "POST /api/sms/bulk",
+      "GET /api/sms/health",
+      "POST /api/sms/test",
+    ],
   });
 });
 
@@ -142,40 +139,36 @@ const PORT = process.env.PORT || 3000;
 if (require.main === module) {
   app.listen(PORT, () => {
     logger.info(`=================================`);
-    logger.info(`Server started successfully`);
+    logger.info(`Odoo Mpesa Payments and SMS Integration Started`);
     logger.info(`=================================`);
     logger.info(`Port: ${PORT}`);
     logger.info(`Environment: ${process.env.NODE_ENV || "development"}`);
     logger.info(`=================================`);
-    logger.info(`Endpoints:`);
-    logger.info(`   Health Check:`);
-    logger.info(`   - GET  /`);
-    logger.info(`   - GET  /health`);
+    logger.info(`Available Endpoints:`);
     logger.info(``);
-    logger.info(`   Hash Generation (for Odoo):`);
-    logger.info(`   - POST /api/hash/generate`);
-    logger.info(`   - POST /api/hash/batch-generate`);
-    logger.info(`   - POST /api/hash/verify`);
-    logger.info(`   - GET  /api/hash/test-formats`);
+    logger.info(`Hash Endpoints (for Odoo customer hashing):`);
+    logger.info(`- POST /api/hash/generate`);
+    logger.info(`- POST /api/hash/batch-generate`);
+    logger.info(`- POST /api/hash/verify`);
+    logger.info(`- GET  /api/hash/test-formats`);
     logger.info(``);
-    logger.info(`   SMS Sending (for Odoo):`);
-    logger.info(
-      `   - POST /send-sms        ← Your Odoo sends to this endpoint`,
-    );
-    logger.info(`   - POST /bulk-send`);
-    logger.info(`   - GET  /sms-health`);
-    logger.info(`   - POST /test-sms`);
+    logger.info(`SMS Endpoints (for Odoo payment confirmations):`);
+    logger.info(`- POST /api/sms/send`);
+    logger.info(`- POST /api/sms/bulk`);
+    logger.info(`- GET  /api/sms/health`);
+    logger.info(`- POST /api/sms/test`);
     logger.info(``);
-    logger.info(`   API Routes (alternative):`);
-    logger.info(`   - POST /api/sms/send`);
-    logger.info(`   - GET  /api/sms/health`);
-    logger.info(`=================================`);
+    logger.info(`Health Endpoints:`);
+    logger.info(`- GET  /health`);
+    logger.info(`- GET  /health/detailed`);
+    logger.info(`- GET  /`);
+    logger.info(``);
     logger.info(`Security:`);
     logger.info(
-      `   IP Whitelist: ${allowedIPs.join(", ") || "Disabled - ALL IPS ALLOWED!"}`,
+      `IP Whitelist: ${allowedIPs.join(", ") || "DISABLED - All IPs allowed"}`,
     );
     logger.info(
-      `   Rate Limit: ${process.env.RATE_LIMIT_MAX || 100} requests per ${process.env.RATE_LIMIT_WINDOW || 15} minutes`,
+      `Rate Limit: ${process.env.RATE_LIMIT_MAX || 100} requests per window`,
     );
     logger.info(`=================================`);
   });

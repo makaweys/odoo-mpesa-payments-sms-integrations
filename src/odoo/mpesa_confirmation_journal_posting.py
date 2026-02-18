@@ -136,7 +136,7 @@ else:
             
             #-------------------------------- Payment Confirmation
             if pmobile_number:
-                api_url = "https://apps.bigthreebakers.co.ke/sms-api/send-sms"
+                api_url = "https://your-server.com:3000/api/sms/send"
                 mobile = pmobile_number
                 mobile = mobile.replace(" ", "") if mobile else ""
                 
@@ -188,7 +188,9 @@ else:
                 
                 try:
                     # Make the API request
-                    response = requests.post(api_url, json=payload, timeout=10)
+                    response = requests.post(api_url, json=payload, headers={
+                        'X-API-Key': 'your-api-key-here'
+                    })
                     response_data = response.json()
                 
                     # Handle the response

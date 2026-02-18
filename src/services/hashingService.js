@@ -1,237 +1,233 @@
-const hashingService = require("../services/hashingService");
-const logger = require("../utils/logger");
+const crypto = require("crypto");
 
-class HashController {
+class HashingService {
+  constructor() {
+    this.salt = process.env.HASH_SALT || "default-salt-change-in-production";
+    this.algorithm = process.env.HASH_ALGORITHM || "sha256";
+  }
+
   /**
-   * Generate SHA256 hashes for a phone number
-   * Handles all Kenyan formats (07, 01, +254, 254, etc.)
+   * Create SHA256 hash (as used by Safaricom Mpesa)
    */
-  async generateHashes(req, res) {
-    try {
-      const { customer_id, mobile_number } = req.body;
+  createSHA256Hash(data) {
+    if (!data) return "";
 
-      // Validate input
-      if (!mobile_number) {
-        logger.warn("Hash generation attempted without mobile number", {
-          customer_id,
-        });
-        return res.status(400).json({
-          error: "Mobile number is required",
-        });
-      }
+    const hash = crypto.createHash(this.algorithm).update(data).digest("hex");
 
-      if (!customer_id) {
-        logger.warn("Hash generation attempted without customer ID", {
-          mobile_number,
-        });
-        return res.status(400).json({
-          error: "Customer ID is required",
-        });
-      }
+    return hash;
+  }
 
-      // Log the incoming request (mask phone number partially)
-      const maskedMobile = mobile_number.replace(
-        /(\d{3})\d{4}(\d{2})/,
-        "$1****$2",
+  /**
+   * Clean and normalize Kenyan phone numbers
+   * Handles various formats:
+   * - 0701 234 567 -> 254701234567
+   * - 0798 456 123 -> 254798456123
+   * - 0110 345 678 -> 254110345678
+   * - +254 701 234 567 -> 254701234567
+   * - 701234567 -> 254701234567
+   * - 254701234567 -> 254701234567
+   */
+  normalizeKenyanPhoneNumber(phoneNumber) {
+    if (!phoneNumber) return "";
+
+    // Convert to string and trim
+    let cleaned = String(phoneNumber).trim();
+
+    // Remove all non-digit characters (spaces, hyphens, parentheses)
+    cleaned = cleaned.replace(/\D/g, "");
+
+    // Handle different Kenyan formats
+    if (cleaned.startsWith("0")) {
+      // Local format: 07XXXXXXXX or 01XXXXXXXX
+      // Remove leading 0 and add 254
+      cleaned = "254" + cleaned.substring(1);
+    } else if (cleaned.startsWith("7") || cleaned.startsWith("1")) {
+      // Format without prefix: 7XXXXXXXX or 1XXXXXXXX
+      // Add 254
+      cleaned = "254" + cleaned;
+    } else if (cleaned.startsWith("2547") || cleaned.startsWith("2541")) {
+      // Already in correct format, keep as is
+      // Do nothing
+    } else if (cleaned.startsWith("2540")) {
+      // Wrong format: 2540XXXXXXXX (extra zero)
+      // Remove the zero after 254
+      cleaned = "254" + cleaned.substring(4);
+    } else if (cleaned.startsWith("254") && cleaned.length > 9) {
+      // Has 254 but might have extra digits
+      cleaned = "254" + cleaned.substring(3).replace(/^0+/, "");
+    }
+
+    // Ensure we have exactly 12 digits for Kenyan numbers (254 + 9 digits)
+    if (cleaned.length === 12 && cleaned.startsWith("254")) {
+      return cleaned;
+    } else if (cleaned.length > 12 && cleaned.startsWith("254")) {
+      // Too long, take first 12 digits
+      return cleaned.substring(0, 12);
+    } else {
+      // If we can't normalize properly, return as is
+      // This will still be hashed but might not match
+      return cleaned;
+    }
+  }
+
+  /**
+   * Generate all three hash formats needed by Odoo
+   * Now properly handles all Kenyan number formats
+   */
+  generateAllHashes(phoneNumber) {
+    // First normalize to international format (254XXXXXXXXX)
+    const normalizedInternational =
+      this.normalizeKenyanPhoneNumber(phoneNumber);
+
+    // Extract the local part (9 digits after 254)
+    const localPart = normalizedInternational.startsWith("254")
+      ? normalizedInternational.substring(3)
+      : normalizedInternational;
+
+    // Generate the three required formats
+    const plus254Format = `+254${localPart}`;
+    const zeroSevenFormat = `0${localPart}`; // For both 07 and 01 prefixes
+    const twoFiveFourFormat = `254${localPart}`;
+
+    console.log("Phone number normalization:", {
+      original: phoneNumber,
+      normalized: normalizedInternational,
+      localPart: localPart,
+      formats: {
+        plus254: plus254Format,
+        "07/01": zeroSevenFormat,
+        254: twoFiveFourFormat,
+      },
+    });
+
+    return {
+      mobile_hash_plus254: this.createSHA256Hash(plus254Format),
+      mobile_hash_07: this.createSHA256Hash(zeroSevenFormat),
+      mobile_hash_254: this.createSHA256Hash(twoFiveFourFormat),
+      original_format: {
+        plus254: plus254Format,
+        "07/01": zeroSevenFormat,
+        254: twoFiveFourFormat,
+      },
+      normalized: normalizedInternational,
+      local_part: localPart,
+    };
+  }
+
+  /**
+   * Test function to demonstrate handling of various Kenyan formats
+   */
+  testAllFormats() {
+    const testNumbers = [
+      // Traditional Safaricom (07)
+      "0701 234 567",
+      "0798 456 123",
+      "0700 000 000",
+
+      // New prefixes (01)
+      "0110 345 678",
+      "0111 222 333",
+      "0100 123 456",
+
+      // With country code
+      "+254 701 234 567",
+      "+254 110 345 678",
+      "+254 798 456 123",
+
+      // Without any formatting
+      "0701234567",
+      "0110345678",
+      "701234567",
+      "110345678",
+
+      // Already in 254 format
+      "254701234567",
+      "254110345678",
+      "254798456123",
+
+      // With extra spaces and dashes
+      "0701-234-567",
+      "+254-701-234-567",
+      " 0701 234 567 ",
+    ];
+
+    console.log("🧪 Testing Kenyan Phone Number Normalization");
+    console.log("=============================================\n");
+
+    const results = {};
+
+    testNumbers.forEach((number) => {
+      console.log(`Input: "${number}"`);
+
+      const normalized = this.normalizeKenyanPhoneNumber(number);
+      console.log(`  Normalized: ${normalized}`);
+
+      const hashes = this.generateAllHashes(number);
+
+      console.log(`  Hashes:`);
+      console.log(
+        `    +254 format: ${hashes.mobile_hash_plus254.substring(0, 16)}...`,
       );
-      logger.info("Processing hash generation request", {
-        customer_id,
-        mobile_number: maskedMobile,
-      });
+      console.log(
+        `    07/01 format: ${hashes.mobile_hash_07.substring(0, 16)}...`,
+      );
+      console.log(
+        `    254 format: ${hashes.mobile_hash_254.substring(0, 16)}...`,
+      );
+      console.log("  ---");
 
-      // Generate all three hash formats
-      const hashes = hashingService.generateAllHashes(mobile_number);
-
-      // Log success
-      logger.info("SHA256 hashes generated successfully", {
-        customer_id,
-        normalized: hashes.normalized,
-        hash_plus254_preview:
-          hashes.mobile_hash_plus254.substring(0, 10) + "...",
-        hash_07_preview: hashes.mobile_hash_07.substring(0, 10) + "...",
-        hash_254_preview: hashes.mobile_hash_254.substring(0, 10) + "...",
-      });
-
-      // Return exactly what Odoo expects
-      return res.status(200).json({
-        customer_id: customer_id,
-        mobile_hash_plus254: hashes.mobile_hash_plus254,
-        mobile_hash_07: hashes.mobile_hash_07,
-        mobile_hash_254: hashes.mobile_hash_254,
-        normalized_number: hashes.normalized, // Optional: helpful for debugging
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      logger.error("Error generating hashes:", error);
-
-      return res.status(500).json({
-        error: "Failed to generate hashes",
-        message:
-          process.env.NODE_ENV === "development" ? error.message : undefined,
-      });
-    }
-  }
-
-  /**
-   * Test endpoint to demonstrate handling of various Kenyan formats
-   */
-  async testFormats(req, res) {
-    try {
-      const results = hashingService.testAllFormats();
-
-      return res.status(200).json({
-        message: "Kenyan phone number format test completed",
-        total_tested: Object.keys(results).length,
-        results: results,
-        note: "All formats normalized to 254XXXXXXXXX before hashing",
-      });
-    } catch (error) {
-      logger.error("Error testing formats:", error);
-      return res.status(500).json({ error: error.message });
-    }
-  }
-
-  /**
-   * Batch generate hashes for multiple phone numbers
-   */
-  async batchGenerateHashes(req, res) {
-    try {
-      const { customers } = req.body;
-
-      if (!Array.isArray(customers)) {
-        return res.status(400).json({
-          error: "Customers must be an array",
-        });
-      }
-
-      const results = [];
-      const errors = [];
-
-      for (const customer of customers) {
-        try {
-          const { customer_id, mobile_number } = customer;
-
-          if (!mobile_number || !customer_id) {
-            errors.push({
-              customer_id: customer_id || "unknown",
-              error: "Missing required fields",
-            });
-            continue;
-          }
-
-          const hashes = hashingService.generateAllHashes(mobile_number);
-
-          results.push({
-            customer_id,
-            mobile_hash_plus254: hashes.mobile_hash_plus254,
-            mobile_hash_07: hashes.mobile_hash_07,
-            mobile_hash_254: hashes.mobile_hash_254,
-            normalized: hashes.normalized,
-          });
-        } catch (err) {
-          errors.push({
-            customer_id: customer.customer_id || "unknown",
-            error: err.message,
-          });
-        }
-      }
-
-      logger.info("Batch hash generation completed", {
-        total: customers.length,
-        successful: results.length,
-        failed: errors.length,
-      });
-
-      return res.status(200).json({
-        success: true,
-        processed: results.length,
-        results,
-        errors: errors.length > 0 ? errors : undefined,
-      });
-    } catch (error) {
-      logger.error("Error in batch hash generation:", error);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-  }
-
-  /**
-   * Verify if a phone number matches a given hash
-   */
-  async verifyHash(req, res) {
-    try {
-      const { mobile_number, hash } = req.body;
-
-      if (!mobile_number || !hash) {
-        return res.status(400).json({
-          error: "Mobile number and hash are required",
-        });
-      }
-
-      const generatedHashes = hashingService.generateAllHashes(mobile_number);
-
-      // Check all three formats
-      const matches = {
-        plus254: generatedHashes.mobile_hash_plus254 === hash,
-        "07/01": generatedHashes.mobile_hash_07 === hash,
-        254: generatedHashes.mobile_hash_254 === hash,
-      };
-
-      const anyMatch = matches.plus254 || matches["07/01"] || matches["254"];
-      const matchedFormat = anyMatch
-        ? matches.plus254
-          ? "plus254"
-          : matches["07/01"]
-            ? "07/01"
-            : "254"
-        : null;
-
-      return res.status(200).json({
-        mobile_number: mobile_number.replace(/(\d{3})\d{4}(\d{2})/, "$1****$2"),
-        normalized: generatedHashes.normalized,
-        hash,
-        matches: matches,
-        any_match: anyMatch,
-        matched_format: matchedFormat,
-        all_hashes: {
-          mobile_hash_plus254: generatedHashes.mobile_hash_plus254,
-          mobile_hash_07: generatedHashes.mobile_hash_07,
-          mobile_hash_254: generatedHashes.mobile_hash_254,
+      results[number] = {
+        normalized,
+        hashes: {
+          plus254_preview: hashes.mobile_hash_plus254.substring(0, 16),
+          zero_preview: hashes.mobile_hash_07.substring(0, 16),
+          twoFiveFour_preview: hashes.mobile_hash_254.substring(0, 16),
         },
-      });
-    } catch (error) {
-      logger.error("Error verifying hash:", error);
-      return res.status(500).json({ error: "Internal server error" });
-    }
+      };
+    });
+
+    return results;
   }
 
   /**
-   * Normalize a phone number without hashing
-   * Useful for debugging
+   * Verify if a phone number matches any of the stored hashes
    */
-  async normalizeNumber(req, res) {
-    try {
-      const { mobile_number } = req.body;
+  verifyPhoneNumber(phoneNumber, storedHashes) {
+    const generatedHashes = this.generateAllHashes(phoneNumber);
 
-      if (!mobile_number) {
-        return res.status(400).json({ error: "Mobile number required" });
-      }
+    const matches = {
+      matches_plus254:
+        generatedHashes.mobile_hash_plus254 ===
+        storedHashes?.mobile_hash_plus254,
+      matches_07:
+        generatedHashes.mobile_hash_07 === storedHashes?.mobile_hash_07,
+      matches_254:
+        generatedHashes.mobile_hash_254 === storedHashes?.mobile_hash_254,
+      any_match: false,
+    };
 
-      const normalized =
-        hashingService.normalizeKenyanPhoneNumber(mobile_number);
-      const formats = {
-        original: mobile_number,
-        normalized: normalized,
-        plus254: `+254${normalized.substring(3)}`,
-        local: `0${normalized.substring(3)}`,
-        international: normalized,
-      };
+    matches.any_match =
+      matches.matches_plus254 || matches.matches_07 || matches.matches_254;
 
-      return res.status(200).json(formats);
-    } catch (error) {
-      logger.error("Error normalizing number:", error);
-      return res.status(500).json({ error: error.message });
-    }
+    return matches;
+  }
+
+  /**
+   * Get the normalized international format
+   * Useful for storing in database
+   */
+  getNormalizedFormat(phoneNumber) {
+    return this.normalizeKenyanPhoneNumber(phoneNumber);
+  }
+
+  /**
+   * Check if two phone numbers are the same after normalization
+   */
+  areSameNumber(phone1, phone2) {
+    const norm1 = this.normalizeKenyanPhoneNumber(phone1);
+    const norm2 = this.normalizeKenyanPhoneNumber(phone2);
+    return norm1 === norm2;
   }
 }
 
-module.exports = new HashController();
+module.exports = new HashingService();

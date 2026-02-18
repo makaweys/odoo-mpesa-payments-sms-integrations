@@ -1,4 +1,4 @@
-# Odoo-Mpesa Hash Bridge
+# Odoo-Mpesa Payments and SMS Integration
 
 A secure Node.js bridge service that integrates Odoo with Mpesa payments by providing phone number hashing (SHA256) and SMS functionality. The system handles Kenyan phone numbers in all formats and provides secure endpoints for Odoo automation scripts.
 
@@ -19,6 +19,15 @@ This service solves two key problems in Odoo-Mpesa integration:
 - **Comprehensive Logging** - All requests logged with sensitive data masked
 - **SMS Integration** - Works with Bulk Textsms provider
 - **Production Ready** - PM2 process management and Docker support
+
+Phone Number Format Support
+The system normalizes all Kenyan phone numbers to the format 254XXXXXXXXX before hashing:
+
+Input Format Normalized Hashed Format
+0701 234 567 254701234567 +254701234567, 0701234567, 254701234567
+0110 345 678 254110345678 +254110345678, 0110345678, 254110345678
++254 701 234 567 254701234567 +254701234567, 0701234567, 254701234567
+701234567 254701234567 +254701234567, 0701234567, 254701234567
 
 ## Prerequisites
 
