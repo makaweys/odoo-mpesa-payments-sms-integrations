@@ -1,5 +1,5 @@
 {
-  "name": "odoo-mpesa-payments-integrations",
+  "name": "odoo-mpesa-payments-sms-integrations",
   "version": "1.0.0",
   "description": "Odoo-Mpesa integration bridge for phone hashing and SMS",
   "main": "src/app.js",

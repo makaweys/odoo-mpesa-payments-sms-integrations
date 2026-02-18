@@ -78,7 +78,6 @@ app.get("/", (req, res) => {
 // Hash generation routes (protected)
 app.use("/api/hash", hashRoutes);
 
-// SMS routes - exactly matching your Odoo expectations
 // Note: These are at root level to match your Odoo's /send-sms endpoint
 app.post("/send-sms", (req, res) => {
   require("./controllers/smsController").sendSMS(req, res);

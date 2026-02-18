@@ -4,7 +4,7 @@ mobile_number = record.mobile
 
 if mobile_number:
     # Define the API URL
-    api_url = "https://API-URL/generate-hashes"
+    api_url = "https://your-server.com:3000/api/hash/generate"
 
     # Prepare the payload
     payload = {
@@ -13,7 +13,9 @@ if mobile_number:
     }
 
     # Send the POST request to the API
-    response = requests.post(api_url, json=payload)
+    response = requests.post(api_url, json=payload, headers={
+    'X-API-Key': 'your-api-key-here'
+})
 
     # Check if the response is successful
     if response.status_code == 200:
