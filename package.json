@@ -1,0 +1,28 @@
+{
+  "name": "odoo-mpesa-payments-integrations",
+  "version": "1.0.0",
+  "description": "Odoo-Mpesa integration bridge for phone hashing and SMS",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "pm2": "pm2 start ecosystem.config.js",
+    "pm2-stop": "pm2 stop odoo-mpesa-bridge",
+    "pm2-logs": "pm2 logs odoo-mpesa-bridge"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "dotenv": "^16.0.3",
+    "axios": "^1.3.5",
+    "helmet": "^7.0.0",
+    "cors": "^2.8.5",
+    "express-rate-limit": "^6.7.0",
+    "winston": "^3.8.2",
+    "express-ipfilter": "^1.3.2",
+    "compression": "^1.7.4",
+    "body-parser": "^1.20.2"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}
