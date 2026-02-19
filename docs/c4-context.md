@@ -1,3 +1,4 @@
+```mermaid
 C4Context
 title System Context - Odoo MPesa Integration
 
@@ -6,6 +7,7 @@ System(MPesa, "MPesa Daraja API")
 System(Odoo, "Odoo Online")
 System(NodeJS, "Node.js Integration Bridge")
 System(SMS, "SMS Provider")
+```
 
 Customer -> MPesa : Makes payment
 MPesa -> Odoo : Payment webhook (hashed MSISDN)
