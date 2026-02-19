@@ -151,7 +151,7 @@ class HashingService {
       " 0701 234 567 ",
     ];
 
-    console.log("🧪 Testing Kenyan Phone Number Normalization");
+    console.log("Testing Kenyan Phone Number Normalization");
     console.log("=============================================\n");
 
     const results = {};
