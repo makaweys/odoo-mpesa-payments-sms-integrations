@@ -1,14 +1,15 @@
+```mermaid
 C4Container
 title Container Diagram - Odoo MPesa Integration
 
 System_Boundary(OdooBoundary, "Odoo Online") {
-Container(Webhooks, "Webhook Handlers", "Odoo Automation", "Receives MPesa confirmations")
-Container(Accounting, "Accounting Engine", "Odoo", "Posts payments")
+    Container(Webhooks, "Webhook Handlers", "Odoo Automation", "Receives MPesa confirmations")
+    Container(Accounting, "Accounting Engine", "Odoo", "Posts payments")
 }
 
 System_Boundary(NodeBoundary, "Node.js Bridge") {
-Container(API, "REST API", "Express.js", "Hashing & SMS endpoints")
-Container(Security, "Security Middleware", "Node.js", "Auth, rate limits, IP whitelist")
+    Container(API, "REST API", "Express.js", "Hashing & SMS endpoints")
+    Container(Security, "Security Middleware", "Node.js", "Auth, rate limits, IP whitelist")
 }
 
 System(MPesa, "MPesa Daraja")
@@ -18,3 +19,4 @@ MPesa -> Webhooks
 Webhooks -> Accounting
 Accounting -> API
 API -> SMS
+```
